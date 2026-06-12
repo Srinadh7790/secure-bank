@@ -19,10 +19,12 @@ pipeline {
         }
 
         stage('Build') {
-            steps {
-                sh 'mvn clean package'
-            }
+    steps {
+        dir('bank-app') {
+            sh 'mvn clean package'
         }
+    }
+}
 
         stage('Code Quality Analysis') {
             steps {
