@@ -18,13 +18,17 @@ pipeline {
             }
         }
 
-        stage('Build') {
-            steps {
-                dir('securebank') {
-                    sh 'mvn clean package'
-                }
-            }
+       stage('Build') {
+    steps {
+        sh 'pwd'
+        sh 'ls -R'
+        sh 'find . -name pom.xml'
+        dir('securebank') {
+            sh 'ls -l'
         }
+        sh 'mvn clean package'
+    }
+}
 
         stage('Code Quality Analysis') {
             steps {
