@@ -19,28 +19,32 @@ pipeline {
         }
 
         stage('Build') {
-    steps {
-        dir('bank-app') {
-            sh 'mvn clean package'
+            steps {
+                dir('securebank') {
+                    sh 'mvn clean package'
+                }
+            }
         }
-    }
-}
 
         stage('Code Quality Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh """
-                    mvn sonar:sonar \
-                    -Dsonar.host.url=${SONAR_HOST} \
-                    -Dsonar.login=${SONAR_TOKEN}
-                    """
+                dir('securebank') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                        mvn sonar:sonar \
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
                 }
             }
         }
 
         stage('Upload Artifact to Nexus') {
             steps {
-                sh 'mvn deploy'
+                dir('securebank') {
+                    sh 'mvn deploy'
+                }
             }
         }
 
@@ -48,7 +52,8 @@ pipeline {
             steps {
                 sh """
                 docker build -t $DOCKER_IMAGE:$BUILD_NUMBER \
-                             -t $DOCKER_IMAGE:latest .
+                             -t $DOCKER_IMAGE:latest \
+                             securebank
                 """
             }
         }
@@ -77,12 +82,13 @@ pipeline {
             }
         }
     }
-}
-post {
-    failure {
-        echo "Pipeline Failed"
-    }
-    success {
-        echo "Pipeline Success"
+
+    post {
+        failure {
+            echo "Pipeline Failed"
+        }
+        success {
+            echo "Pipeline Success"
+        }
     }
 }
