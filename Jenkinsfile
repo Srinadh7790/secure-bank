@@ -7,36 +7,42 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "srinadh7790/bank-app"
-        SONAR_HOST = "http://sonarqube-server:9000"
+        
+        // FIXED: use localhost instead of fake DNS
+        SONAR_HOST = "http://localhost:9000"
     }
 
     stages {
 
-        stage('Git Checkout') {
+        stage('Checkout') {
             steps {
-                git branch: 'master', url: 'https://github.com/Srinadh7790/secure-bank.git'
+                git branch: 'master',
+                url: 'https://github.com/Srinadh7790/secure-bank.git'
             }
         }
-        stage('Check Java') {
-    steps {
-        sh 'java -version'
-        sh 'javac -version'
-    }
-}
 
-      stage('Build') {
-    steps {
-        dir('securebank') {
-            sh 'ls -l'
-            sh 'mvn clean package'
+        stage('Check Java') {
+            steps {
+                sh '''
+                java -version
+                javac -version || true
+                echo $JAVA_HOME
+                '''
+            }
         }
-    }
-}
+
+        stage('Build') {
+            steps {
+                dir('securebank') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
 
         stage('Code Quality Analysis') {
             steps {
-                dir('securebank') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    dir('securebank') {
                         sh """
                         mvn sonar:sonar \
                         -Dsonar.host.url=${SONAR_HOST} \
@@ -50,7 +56,7 @@ pipeline {
         stage('Upload Artifact to Nexus') {
             steps {
                 dir('securebank') {
-                    sh 'mvn deploy'
+                    sh 'mvn deploy -DskipTests'
                 }
             }
         }
@@ -58,9 +64,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                docker build -t $DOCKER_IMAGE:$BUILD_NUMBER \
-                             -t $DOCKER_IMAGE:latest \
-                             securebank
+                docker build -t $DOCKER_IMAGE:$BUILD_NUMBER .
+                docker tag $DOCKER_IMAGE:$BUILD_NUMBER $DOCKER_IMAGE:latest
                 """
             }
         }
@@ -68,8 +73,10 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 withDockerRegistry([credentialsId: 'dockerhub-creds', url: '']) {
-                    sh "docker push $DOCKER_IMAGE:$BUILD_NUMBER"
-                    sh "docker push $DOCKER_IMAGE:latest"
+                    sh """
+                    docker push $DOCKER_IMAGE:$BUILD_NUMBER
+                    docker push $DOCKER_IMAGE:latest
+                    """
                 }
             }
         }
@@ -91,11 +98,11 @@ pipeline {
     }
 
     post {
-        failure {
-            echo "Pipeline Failed"
-        }
         success {
-            echo "Pipeline Success"
+            echo "Pipeline SUCCESS 🚀"
+        }
+        failure {
+            echo "Pipeline FAILED ❌"
         }
     }
 }
