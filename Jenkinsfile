@@ -17,6 +17,12 @@ pipeline {
                 git branch: 'master', url: 'https://github.com/Srinadh7790/secure-bank.git'
             }
         }
+        stage('Check Java') {
+    steps {
+        sh 'java -version'
+        sh 'javac -version'
+    }
+}
 
       stage('Build') {
     steps {
