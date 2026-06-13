@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -7,9 +8,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "srinadh7790/bank-app"
-        
-        // FIXED: use localhost instead of fake DNS
-        SONAR_HOST = "http://localhost:9000"
+        SONAR_HOST  = "http://3.109.56.52:9000"
     }
 
     stages {
@@ -17,16 +16,17 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                url: 'https://github.com/Srinadh7790/secure-bank.git'
+                    credentialsId: 'github-credential',
+                    url: 'https://github.com/Srinadh7790/secure-bank.git'
             }
         }
 
         stage('Check Java') {
             steps {
                 sh '''
-                java -version
-                javac -version || true
-                echo $JAVA_HOME
+                    java -version
+                    javac -version
+                    echo "JAVA_HOME=$JAVA_HOME"
                 '''
             }
         }
@@ -41,8 +41,13 @@ pipeline {
 
         stage('Code Quality Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    dir('securebank') {
+                dir('securebank') {
+                    withCredentials([
+                        string(
+                            credentialsId: 'sonartoken',
+                            variable: 'SONAR_TOKEN'
+                        )
+                    ]) {
                         sh """
                         mvn sonar:sonar \
                         -Dsonar.host.url=${SONAR_HOST} \
@@ -63,19 +68,25 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t $DOCKER_IMAGE:$BUILD_NUMBER .
-                docker tag $DOCKER_IMAGE:$BUILD_NUMBER $DOCKER_IMAGE:latest
-                """
+                dir('securebank') {
+                    sh """
+                    docker build \
+                    -t ${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                    -t ${DOCKER_IMAGE}:latest .
+                    """
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                withDockerRegistry([credentialsId: 'dockerhub-creds', url: '']) {
+                withDockerRegistry(
+                    credentialsId: 'dockerhub-creds',
+                    url: ''
+                ) {
                     sh """
-                    docker push $DOCKER_IMAGE:$BUILD_NUMBER
-                    docker push $DOCKER_IMAGE:latest
+                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                    docker push ${DOCKER_IMAGE}:latest
                     """
                 }
             }
@@ -83,13 +94,26 @@ pipeline {
 
         stage('Deploy to EC2') {
             steps {
-                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'KEY')]) {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'KEY'
+                    )
+                ]) {
+
                     sh """
-                    ssh -i $KEY ec2-user@13.203.205.147 '
-                    docker pull $DOCKER_IMAGE:$BUILD_NUMBER &&
-                    docker stop bank-app || true &&
-                    docker rm bank-app || true &&
-                    docker run -d --name bank-app -p 8080:8080 $DOCKER_IMAGE:$BUILD_NUMBER
+                    ssh -o StrictHostKeyChecking=no \
+                    -i \$KEY ec2-user@13.203.205.147 '
+
+                    docker pull ${DOCKER_IMAGE}:${BUILD_NUMBER}
+
+                    docker stop bank-app || true
+                    docker rm bank-app || true
+
+                    docker run -d \
+                    --name bank-app \
+                    -p 8080:8080 \
+                    ${DOCKER_IMAGE}:${BUILD_NUMBER}
                     '
                     """
                 }
@@ -98,11 +122,18 @@ pipeline {
     }
 
     post {
+
         success {
-            echo "Pipeline SUCCESS 🚀"
+            echo 'Pipeline SUCCESS 🚀'
         }
+
         failure {
-            echo "Pipeline FAILED ❌"
+            echo 'Pipeline FAILED ❌'
+        }
+
+        always {
+            cleanWs()
         }
     }
 }
+```
