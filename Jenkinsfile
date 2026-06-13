@@ -1,4 +1,5 @@
 
+```groovy
 pipeline {
     agent any
 
@@ -8,7 +9,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "srinadh7790/bank-app"
-        SONAR_HOST  = "http://3.109.56.52:9000"
+        SONAR_HOST   = "http://3.109.56.52:9000"
     }
 
     stages {
@@ -24,6 +25,7 @@ pipeline {
         stage('Check Java') {
             steps {
                 sh '''
+                    echo "========== JAVA VERSION =========="
                     java -version
                     javac -version
                     echo "JAVA_HOME=$JAVA_HOME"
@@ -48,11 +50,12 @@ pipeline {
                             variable: 'SONAR_TOKEN'
                         )
                     ]) {
-                        sh """
+
+                        sh '''
                         mvn sonar:sonar \
-                        -Dsonar.host.url=${SONAR_HOST} \
-                        -Dsonar.login=${SONAR_TOKEN}
-                        """
+                        -Dsonar.host.url=$SONAR_HOST \
+                        -Dsonar.token=$SONAR_TOKEN
+                        '''
                     }
                 }
             }
@@ -84,6 +87,7 @@ pipeline {
                     credentialsId: 'dockerhub-creds',
                     url: ''
                 ) {
+
                     sh """
                     docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
                     docker push ${DOCKER_IMAGE}:latest
@@ -94,6 +98,7 @@ pipeline {
 
         stage('Deploy to EC2') {
             steps {
+
                 withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'ec2-ssh-key',
@@ -103,7 +108,7 @@ pipeline {
 
                     sh """
                     ssh -o StrictHostKeyChecking=no \
-                    -i \$KEY ec2-user@13.203.205.147 '
+                    -i \$KEY ubuntu@13.203.205.147 '
 
                     docker pull ${DOCKER_IMAGE}:${BUILD_NUMBER}
 
@@ -113,6 +118,7 @@ pipeline {
                     docker run -d \
                     --name bank-app \
                     -p 8080:8080 \
+                    --restart always \
                     ${DOCKER_IMAGE}:${BUILD_NUMBER}
                     '
                     """
@@ -136,4 +142,4 @@ pipeline {
         }
     }
 }
-
+```
